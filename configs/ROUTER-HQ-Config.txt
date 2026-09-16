@@ -1,0 +1,220 @@
+version 15.6
+service timestamps log datetime msec localtime show-timezone
+service timestamps debug datetime msec localtime show-timezone
+service password-encryption
+!
+hostname Router-HQ
+!
+boot-start-marker
+boot-end-marker
+!
+enable secret 5 $1$0WRl$MRSIi.R5KPDk.FtQAaE4y/
+!
+!
+no aaa new-model
+ethernet lmi ce
+!
+!
+!
+clock timezone CET 1 0
+clock summer-time CEST recurring
+mmi polling-interval 60
+no mmi auto-configure
+no mmi pvc
+mmi snmp-timeout 180
+!
+!
+!
+!
+!
+!
+!
+!
+ip dhcp excluded-address 10.10.10.1 10.10.10.99
+!
+ip dhcp pool Mitarbeiter
+ network 10.10.10.0 255.255.255.0
+ dns-server 10.10.100.1 
+ domain-name office.local
+ default-router 10.10.10.1 
+!
+!
+!
+ip domain name HQ
+ip name-server 10.10.100.1
+ip cef
+no ipv6 cef
+!
+multilink bundle-name authenticated
+!
+!
+!
+!
+username admin password 7 110C0F00
+!
+redundancy
+!
+!
+crypto key generate rsa modulus 1024
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+interface GigabitEthernet0/0
+ no shutdown
+ description Transit zur Fortigate
+ ip address 10.10.100.2 255.255.255.252
+ ip virtual-reassembly in
+ duplex auto
+ speed auto
+ media-type rj45
+!
+interface GigabitEthernet0/1
+ no shutdown
+ description server-lan
+ ip address 10.10.0.1 255.255.255.0
+ ip access-group Backup-Server-Restrictions in
+ ip virtual-reassembly in
+ duplex auto
+ speed auto
+ media-type rj45
+!
+interface GigabitEthernet0/2
+ no shutdown
+ no ip address
+ duplex auto
+ speed auto
+ media-type rj45
+!
+interface GigabitEthernet0/2.10
+ no shutdown
+ description Mitarbeiter-Subinterface VLAN10
+ encapsulation dot1Q 10
+ ip address 10.10.10.1 255.255.255.0
+ ip access-group VLAN10-Restrictions in
+!
+interface GigabitEthernet0/2.20
+ no shutdown
+ description Staging-Server-Gateway
+ encapsulation dot1Q 20
+ ip address 10.10.20.1 255.255.255.0
+ ip access-group Staging-Server-Restrictions in
+!
+interface GigabitEthernet0/2.30
+ no shutdown
+ description Infrastructure
+ encapsulation dot1Q 30
+ ip address 10.10.30.1 255.255.255.0
+ ip access-group Infrastructure-Restrictions in
+!
+interface GigabitEthernet0/2.99
+ no shutdown
+ description mgmt subinterface
+ encapsulation dot1Q 99
+ ip address 10.10.99.1 255.255.255.0
+!
+interface GigabitEthernet0/3
+ no ip address
+ ip virtual-reassembly in
+ shutdown
+ duplex auto
+ speed auto
+ media-type rj45
+!
+ip forward-protocol nd
+!
+!
+no ip http server
+no ip http secure-server
+ip route 0.0.0.0 0.0.0.0 10.10.100.1
+ip route 10.10.200.0 255.255.255.0 10.10.100.1
+ip ssh version 2
+!
+ip access-list extended Backup-Server-Restrictions
+ permit icmp host 10.10.0.5 host 10.10.0.1 echo
+ permit icmp host 10.10.0.5 10.10.99.0 0.0.0.255 echo-reply
+ permit tcp host 10.10.0.5 eq 22 10.10.99.0 0.0.0.255 established
+ permit tcp host 10.10.0.5 host 10.10.20.10 eq 22
+ deny   ip host 10.10.0.5 10.10.10.0 0.0.0.255
+ deny   ip host 10.10.0.5 10.10.99.0 0.0.0.255
+ permit ip host 10.10.0.5 any
+Extended IP access list Infrastructure-Restrictions
+    10 permit udp host 10.10.30.5 eq 1812 host 10.10.100.1
+    20 permit tcp 10.10.30.0 0.0.0.255 eq 22 host 10.10.99.9 established
+    30 permit tcp 10.10.30.0 0.0.0.255 any eq www
+    40 permit tcp 10.10.30.0 0.0.0.255 any eq 443
+    50 permit icmp 10.10.30.0 0.0.0.255 10.10.99.0 0.0.0.255 echo-reply
+    60 permit icmp 10.10.30.0 0.0.0.255 host 10.10.30.1 echo
+    70 permit udp 10.10.30.0 0.0.0.255 any eq domain
+    80 permit tcp 10.10.30.0 0.0.0.255 any eq domain
+    90 permit udp 10.10.30.0 0.0.0.255 any eq ntp
+    100 permit icmp 10.10.30.0 0.0.0.255 host 10.10.100.1 echo
+    110 permit icmp 10.10.30.0 0.0.0.255 host 10.10.100.1 echo-reply
+ip access-list extended Staging-Server-Restrictions
+    10 permit udp host 10.10.20.10 any eq ntp
+    20 permit icmp host 10.10.20.10 10.10.99.0 0.0.0.255 echo-reply
+    30 permit tcp host 10.10.20.10 eq 22 10.10.99.0 0.0.0.255 established
+    40 permit icmp host 10.10.20.10 host 10.10.20.1 echo
+    50 permit tcp host 10.10.20.10 eq 22 10.10.0.0 0.0.0.255 established
+    60 permit tcp host 10.10.20.10 eq 22 10.10.10.0 0.0.0.255 established
+    70 permit tcp host 10.10.20.10 eq 443 10.10.10.0 0.0.0.255 established
+    80 permit icmp host 10.10.20.10 10.10.0.0 0.0.0.255 echo-reply
+    90 permit icmp host 10.10.20.10 10.10.10.0 0.0.0.255 echo-reply
+    100 permit udp host 10.10.20.10 any eq domain
+    110 permit tcp host 10.10.20.10 any eq domain
+    120 permit tcp host 10.10.20.10 any eq www
+    130 permit tcp host 10.10.20.10 any eq 443
+    140 permit icmp host 10.10.20.10 10.10.200.0 0.0.0.255 echo-reply
+    150 permit tcp host 10.10.20.10 eq 22 10.10.200.0 0.0.0.255 established
+    160 deny ip host 10.10.20.10 10.10.0.0 0.0.0.255
+    170 deny ip host 10.10.20.10 10.10.99.0 0.0.0.255
+ip access-list extended VLAN10-Restrictions
+10 permit udp host 0.0.0.0 eq bootpc any eq bootps
+20 permit icmp host 10.10.10.9 host 10.10.99.9 echo
+30 permit tcp host 10.10.10.9 host 10.10.99.9 eq 22
+40 permit udp 10.10.10.0 0.0.0.255 any eq ntp
+50 permit tcp 10.10.10.0 0.0.0.255 eq 22 10.10.99.0 0.0.0.255 established
+60 permit icmp 10.10.10.0 0.0.0.255 10.10.99.0 0.0.0.255 echo-reply
+70 permit tcp 10.10.10.0 0.0.0.255 host 10.10.20.10 eq 22
+80 permit tcp 10.10.10.0 0.0.0.255 host 10.10.20.10 eq 443
+90 permit udp 10.10.10.0 0.0.0.255 any eq domain
+100 permit tcp 10.10.10.0 0.0.0.255 any eq domain
+110 deny ip 10.10.10.0 0.0.0.255 10.10.99.0 0.0.0.255
+120 deny ip 10.10.10.0 0.0.0.255 10.10.0.0 0.0.0.255
+130 permit ip 10.10.10.0 0.0.0.255 any
+!
+!
+logging host 10.10.99.6
+logging trap informational
+!
+control-plane
+!
+
+banner exec ^C ^C
+banner incoming ^C ^C
+banner login ^C ^C
+banner motd ^C ^C
+!
+line con 0
+ no exec-banner
+!
+line aux 0
+line vty 0 4
+ login local
+ transport input ssh
+line vty 5 15
+ login local
+ transport input ssh
+!
+no scheduler allocate
+sntp server 10.10.100.1
+sntp source-interface GigabitEthernet0/0
+!
+end

@@ -1,0 +1,184 @@
+version 15.2
+service timestamps log datetime msec localtime show-timezone
+service timestamps debug datetime msec localtime show-timezone
+service password-encryption
+service compress-config
+!
+hostname Switch-HQ
+!
+boot-start-marker
+boot-end-marker
+!
+!
+username admin password 7 110C0F00
+!
+no aaa new-model
+clock timezone CET 1 0
+clock summer-time CEST recurring
+!
+!
+!
+enable secret 5 $1$0WRl$MRSIi.R5KPDk.FtQAaE4y/
+!
+vtp mode transparent
+!
+!
+!
+ip domain-name HQ
+ip cef
+no ipv6 cef
+!
+!
+!
+spanning-tree mode rapid-pvst
+spanning-tree extend system-id
+!
+!
+vlan 10
+ name Mitarbeiter
+!
+vlan 20
+ name Staging-Server
+!
+vlan 30
+ name Infrastructure
+!
+vlan 99
+ name MGMT
+!
+vlan 120
+ name Native
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+interface GigabitEthernet0/0
+ description Trunk to AP
+ switchport trunk allowed vlan 10,99
+ switchport trunk encapsulation dot1q
+ switchport trunk native vlan 120
+ switchport mode trunk
+ switchport nonegotiate
+ no negotiation auto
+!
+interface GigabitEthernet0/1
+ description Link to Staging-Server
+ switchport access vlan 20
+ switchport mode access
+ switchport nonegotiate
+ switchport port-security mac-address sticky
+ no negotiation auto
+ spanning-tree portfast edge
+ spanning-tree bpduguard enable
+!
+interface GigabitEthernet0/2
+ switchport trunk allowed vlan 10,20,30,99
+ switchport trunk encapsulation dot1q
+ switchport trunk native vlan 120
+ switchport mode trunk
+ no negotiation auto
+!
+interface GigabitEthernet0/3
+ description Link to Jump-Host
+ switchport access vlan 99
+ switchport mode access
+ switchport nonegotiate
+ switchport port-security mac-address sticky
+ no negotiation auto
+ spanning-tree portfast edge
+ spanning-tree bpduguard enable
+!
+interface GigabitEthernet1/0
+ description Link to RADIUS-HQ
+ switchport access vlan 30
+ switchport mode access
+ switchport nonegotiate
+ no negotiation auto
+ spanning-tree portfast edge
+ spanning-tree bpduguard enable
+!
+interface GigabitEthernet1/1
+ description Link to Syslog-HQ
+ switchport access vlan 99
+ switchport mode access
+ switchport nonegotiate
+ negotiation auto
+ spanning-tree portfast edge
+!
+interface GigabitEthernet1/2
+ shutdown
+ negotiation auto
+!
+interface GigabitEthernet1/3
+ shutdown
+ negotiation auto
+!
+interface Vlan10
+ description Mitarbeiter
+ no ip address
+ shutdown
+!
+interface Vlan20
+ description Staging-Server
+ no ip address
+ shutdown
+!
+interface Vlan30
+ description Infrastructure
+ no ip address
+ shutdown
+!
+interface Vlan99
+ description MGMT
+ ip address 10.10.99.12 255.255.255.0
+ shutdown
+ no shutdown
+!
+ip default-gateway 10.10.99.1
+ip forward-protocol nd
+!
+ip http server
+ip http secure-server
+!
+ip ssh version 2
+ip ssh server algorithm encryption aes128-ctr aes192-ctr aes256-ctr
+ip ssh client algorithm encryption aes128-ctr aes192-ctr aes256-ctr
+!
+!
+!
+logging host 10.10.99.6
+logging trap informational
+!
+!
+control-plane
+!
+!
+!
+banner exec ^C ^C
+banner incoming ^C ^C
+banner login ^C ^C
+banner motd ^C ^C
+!
+line con 0
+ no exec-banner
+!
+line aux 0
+line vty 0 4
+ login local
+ transport input ssh
+line vty 5 15
+ login local
+ transport input ssh
+!
+ntp source Vlan99
+ntp server 10.10.100.1
