@@ -11,7 +11,6 @@ A detailed look at problems encountered while building this network that aren't 
 - [su without a dash leaves SSH searching the wrong home directory](#su-without-a-dash-leaves-ssh-searching-the-wrong-home-directory)
 - [A misleading error hid a session-context problem, twice over](#a-misleading-error-hid-a-session-context-problem-twice-over)
 - [FortiClient negotiates IKEv1 by default, not IKEv2](#forticlient-negotiates-ikev1-by-default-not-ikev2)
-- [Two SSH keys shared an identical, misleading comment](#two-ssh-keys-shared-an-identical-misleading-comment)
 
 ## Network & ACL Logic
 
@@ -59,4 +58,3 @@ A key-based login failed for a specific user, despite the exact same key working
 A tunnel configured on the firewall side for IKEv2 failed with a proposal mismatch, even though every visible parameter matched.
 
 Firewall-side debug showed incoming IKEv1 Aggressive Mode packets, not IKEv2 at all. The IKE version turned out to be a separate, easy-to-miss field in FortiClient's advanced connection settings, defaulting to version 1. Setting it explicitly to 2 resolved the mismatch.
-
