@@ -24,7 +24,7 @@ The switch and access point repeatedly failed to reach services placed one VLAN 
 
 After each switch restart, the management interface was administratively enabled but simply not reachable — with nothing in the saved configuration indicating a problem.
 
-**`show ip interface brief`** showed the interface down, even though no **`shutdown`** line existed anywhere in the config. Adding an explicit **`shutdown`* followed by **`no shutdown`** directly in the startup config didn't help either — IOS evaluates only the final configured state when booting, not the sequence of commands that produced it. The only reliable fix was a manual bounce at runtime, with a real time gap between **`shutdown`** and **`no shutdown`**, repeated after every boot.
+**`show ip interface brief`** showed the interface down, even though no **`shutdown`** line existed anywhere in the config. Adding an explicit **`shutdown`** followed by **`no shutdown`** directly in the startup config didn't help either — IOS evaluates only the final configured state when booting, not the sequence of commands that produced it. The only reliable fix was a manual bounce at runtime, with a real time gap between **`shutdown`** and **`no shutdown`**, repeated after every boot.
 
 
 ## Linux & Alpine Specifics
