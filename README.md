@@ -1,4 +1,4 @@
-# HeptaNetworks - EVE-NG company lab
+# HeptaNetworks - EVE-NG Company Network
 
 A strictly segmented company network spanning Cisco IOS, FortiOS, Windows, and Linux, from jump-host access control to RADIUS-authenticated VPN and automated backup pipelines.
 
