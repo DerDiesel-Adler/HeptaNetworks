@@ -8,9 +8,9 @@ A detailed look at problems encountered while building this network that aren't 
 - [A management SVI dropped to down after every reload, despite a correct config](#a-management-svi-dropped-to-down-after-every-reload-despite-a-correct-config)
 - [An empty password at account creation locks the account entirely](#an-empty-password-at-account-creation-locks-the-account-entirely)
 - [FreeRADIUS silently ignored EAP entirely](#freeradius-silently-ignored-eap-entirely)
-- [su without a dash leaves SSH searching the wrong home directory](#su-without-a-dash-leaves-ssh-searching-the-wrong-home-directory)
 - [A misleading error hid a session-context problem, twice over](#a-misleading-error-hid-a-session-context-problem-twice-over)
 - [FortiClient negotiates IKEv1 by default, not IKEv2](#forticlient-negotiates-ikev1-by-default-not-ikev2)
+- [Legacy Cisco IOS images rejected SSH from a modern OpenSSH client](#legacy-cisco-ios-images-rejected-ssh-from-a-modern-openssh-client)
 
 ## Network & ACL Logic
 
@@ -41,11 +41,6 @@ A properly configured EAP setup rejected every authentication attempt, with only
 
 The **`freeradius-utils`** package only provides client-side testing tools; the actual EAP module ships in a separate **`freeradius-eap`** package that hadn't been installed. After adding it, a second issue surfaced: the module also requires working TLS submodules to load at all, even for EAP-MSCHAPv2 with no certificates involved, resolved using the bundled bootstrap script to generate test certificates.
 
-### su without a dash leaves SSH searching the wrong home directory
-
-A key-based login failed for a specific user, despite the exact same key working moments earlier while testing as root.
-
-**`echo $HOME`** still pointed at the previous user's home directory after switching; **`su`** without a dash changes the active user but doesn't update **`$HOME`**, and SSH looks for keys relative to **`$HOME`**. Using **`su -`** (a real login shell) fixed it immediately.
 
 ### A misleading error hid a session-context problem, twice over
 
@@ -58,3 +53,20 @@ A key-based login failed for a specific user, despite the exact same key working
 A tunnel configured on the firewall side for IKEv2 failed with a proposal mismatch, even though every visible parameter matched.
 
 Firewall-side debug showed incoming IKEv1 Aggressive Mode packets, not IKEv2 at all. The IKE version turned out to be a separate, easy-to-miss field in FortiClient's advanced connection settings, defaulting to version 1. Setting it explicitly to 2 resolved the mismatch.
+
+### Legacy Cisco IOS images rejected SSH from a modern OpenSSH client
+
+SSH from the Alpine jump host to Router-HQ, Switch-HQ and AP-HQ failed
+with a "no matching key exchange method found" error, even though SSHv2
+was enabled on all three devices.
+
+The IOS 15.x images only offer `diffie-hellman-group14-sha1` for key
+exchange and `ssh-rsa` as host key algorithm, both of which current
+OpenSSH (Alpine 3.21) disables by default. Re-enabling them explicitly
+on the client side, for the Cisco hosts only, resolved it:
+
+    ssh -oKexAlgorithms=+diffie-hellman-group14-sha1 \
+        -oHostKeyAlgorithms=+ssh-rsa admin@10.10.99.12
+
+In production, the proper fix would be a newer IOS release with modern
+algorithms rather than weakening the client.
