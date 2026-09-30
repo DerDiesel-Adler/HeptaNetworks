@@ -123,7 +123,7 @@ A few of the more interesting problems solved along the way:
 A further lookup of the issues I was confronted with: [troubleshooting.md](troubleshooting/troubleshooting.md)
 
 <br><br>
-
+   
 <hr style="height:3px; background-color:#555; border:none;">
 
 <br><br>
