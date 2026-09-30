@@ -66,7 +66,7 @@ OpenSSH (Alpine 3.21) disables by default. Re-enabling them explicitly
 on the client side, for the Cisco hosts only, resolved it:
 
     ssh -oKexAlgorithms=+diffie-hellman-group14-sha1 \
-        -oHostKeyAlgorithms=+ssh-rsa admin@10.10.99.12
+        -oHostKeyAlgorithms=+ssh-rsa admin@10.10.99.12  
 
 In production, the proper fix would be a newer IOS release with modern
 algorithms rather than weakening the client.
