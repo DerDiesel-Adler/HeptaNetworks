@@ -158,25 +158,64 @@ ssh-keygen -t ed25519 -C "admin@Jump-Host-HQ"
 This key gets deployed to every other server's `admin` user (Staging,
 Backup, Radius, Syslog).
 
+**Legacy SSH algorithms for the Cisco devices.** The IOS 15.x images on
+Router-HQ, Switch-HQ and AP-HQ only offer `diffie-hellman-group14-sha1`
+for key exchange and `ssh-rsa` as host key type, both disabled by default
+in current OpenSSH. They are re-enabled on the jump host for the
+management segment only, so a plain `ssh admin@10.10.99.12` works without
+extra flags:
+
+```
+cat >> ~/.ssh/config << 'EOF'
+Host 10.10.99.*
+    KexAlgorithms +diffie-hellman-group14-sha1
+    HostKeyAlgorithms +ssh-rsa
+EOF
+chmod 600 ~/.ssh/config
+```
+
+The `+` appends to the default list instead of replacing it, so the Linux
+nodes in the same segment keep negotiating modern algorithms. The Cisco
+devices authenticate with local accounts (SSHv2, `login local`), key-based
+login applies to the Linux nodes.
+
 ---
 
 ## PC-HQ-MA1
 
 Represents a regular employee client. Receives its IP via DHCP from the
-router's `Mitarbeiter` pool rather than a static address. Its role in this
-lab is exclusively as the source of the daily backup push — see the
+router's `Employees` pool rather than a static address. Its role in this
+lab is exclusively as the source of the backup push — see the
 [Backup Chain](#backup-chain) section below.
+
+Employees work as an unprivileged user, not as `root`. The account
+`employee` owns the working directory `/home/employee/work/` and the push
+key, so no root credentials are involved in the backup push:
+
+```
+adduser employee
+mkdir -p /home/employee/work
+chown -R employee:employee /home/employee
+su - employee
+ssh-keygen -t ed25519 -C "employee@PC-HQ-MA1"
+```
+
+(Set a password at account creation, same reasoning as above.) The public
+key goes into `pushuser`'s `authorized_keys` on Staging-Server-HQ.
 
 ---
 
 ## Staging-Server-HQ
 
 Intermediate storage layer: receives pushed data from employee clients,
-and is the source that the backup server later pulls from. Two dedicated
+and is the source that the backup server later pulls from. Three dedicated
 service accounts live here in addition to the baseline `admin` account:
 
-- **`pushuser`** — receives incoming pushes from client machines (e.g.
-  PC-HQ-MA1). Never initiates connections itself.
+- **`pushuser`** — receives incoming pushes from the Linux employee client
+  (PC-HQ-MA1). Never initiates connections itself.
+- **`winpush`** — receives incoming pushes from the Windows VPN client
+  (see [`vpn-radius-setup.md`](vpn-radius-setup.md)). Never initiates
+  connections itself.
 - **`backupuser`** — accepts the backup server's pull connections. Also
   never initiates connections itself.
 
@@ -193,6 +232,11 @@ setup.
 ```
 apk add rsync
 ```
+
+`backupuser` has to read both incoming directories
+(`/home/pushuser/incoming/` and `/home/winpush/incoming/`). The default
+home directory permissions (`drwxr-sr-x`) already allow that, which can be
+confirmed with `ls -ld /home/pushuser /home/winpush`.
 
 ---
 
@@ -216,7 +260,7 @@ The full automation, in both directions:
 
 **1. Push: PC-HQ-MA1 → Staging-Server-HQ, daily at 17:30**
 
-On PC-HQ-MA1:
+On PC-HQ-MA1 (the push runs as `employee`, using that user's key):
 ```
 apk add rsync openssh-client
 ```
@@ -224,15 +268,18 @@ apk add rsync openssh-client
 ```
 cat > /usr/local/bin/push-backup.sh << 'EOF'
 #!/bin/sh
-rsync -avz -e ssh /root/Work/ pushuser@10.10.20.10:/home/pushuser/incoming/
-date > /root/.last-push
+rsync -avz -e ssh /home/employee/work/ pushuser@10.10.20.10:/home/pushuser/incoming/ && date > /home/employee/.last-push
 EOF
 chmod +x /usr/local/bin/push-backup.sh
 ```
 
+The marker file `.last-push` is only written if `rsync` succeeded (`&&`),
+so a failed push is retried by the login fallback below.
+
 ```
 rc-update add crond default
 rc-service crond start
+su - employee
 crontab -e
 ```
 Add:
@@ -246,7 +293,7 @@ Add:
 cat > /etc/profile.d/push-check.sh << 'EOF'
 #!/bin/sh
 TODAY=$(date +%Y-%m-%d)
-LASTPUSH=$(date -r /root/.last-push +%Y-%m-%d 2>/dev/null)
+LASTPUSH=$(date -r /home/employee/.last-push +%Y-%m-%d 2>/dev/null)
 
 if [ "$TODAY" != "$LASTPUSH" ]; then
     /usr/local/bin/push-backup.sh &
@@ -259,7 +306,10 @@ chmod +x /etc/profile.d/push-check.sh
 
 On Backup-Server-HQ, hardlink-snapshot approach — unchanged files across
 consecutive days cost no additional disk space, since `--link-dest`
-hardlinks them instead of copying:
+hardlinks them instead of copying. Both push targets on the staging
+server are pulled into the same dated snapshot: the Linux client's data
+directly in the day folder, the Windows VPN client's data in a `vpn-client`
+subfolder.
 
 ```
 cat > /usr/local/bin/backup.sh << 'EOF'
@@ -270,6 +320,8 @@ LATEST="/backup/staging/latest"
 
 mkdir -p "$DEST"
 rsync -avz --link-dest="$LATEST" -e "ssh -i /root/.ssh/id_ed25519" backupuser@10.10.20.10:/home/pushuser/incoming/ "$DEST"
+mkdir -p "$DEST/vpn-client"
+rsync -avz --link-dest="$LATEST/vpn-client" -e "ssh -i /root/.ssh/id_ed25519" backupuser@10.10.20.10:/home/winpush/incoming/ "$DEST/vpn-client/"
 rm -f "$LATEST"
 ln -s "$DEST" "$LATEST"
 EOF
@@ -288,11 +340,16 @@ Add:
 
 **Verification:**
 ```
-/usr/local/bin/push-backup.sh          # on PC-HQ-MA1
-ls -la /home/pushuser/incoming/        # on Staging-Server-HQ
-/usr/local/bin/backup.sh               # on Backup-Server-HQ
-ls -la /backup/staging/                # dated folders + a `latest` symlink
+/usr/local/bin/push-backup.sh              # on PC-HQ-MA1, as employee
+ls -la /home/pushuser/incoming/            # on Staging-Server-HQ
+/usr/local/bin/backup.sh                   # on Backup-Server-HQ
+ls -la /backup/staging/                    # dated folders + a `latest` symlink
+ls -la /backup/staging/latest/             # data pushed by PC-HQ-MA1
+ls -la /backup/staging/latest/vpn-client/  # data pushed by the VPN client
 ```
+On the very first run, rsync prints `--link-dest arg does not exist` for
+the `vpn-client` folder. That is expected, there is no previous snapshot
+to hardlink against yet.
 
 To confirm the hardlink behavior is actually working (no duplicate disk
 usage for unchanged files across two snapshots):
@@ -359,10 +416,10 @@ rc-update add rsyslog default
 rc-service rsyslog start
 ```
 
-**Currently forwarding logs here:** Router-HQ and FortiGate-HQ (see the
-main [README](../README.md#architecture-decisions) for configuration on
-those devices). Switch-HQ and AP-HQ cannot reach this VLAN due to their
-single-hop default-gateway limitation, documented in
+**Currently forwarding logs here:** Router-HQ, FortiGate-HQ, Switch-HQ and
+AP-HQ (configuration in the files under `configs/`). Switch-HQ and AP-HQ
+can only reach the server because it sits in their own Layer-2 segment,
+see the single-hop default-gateway limitation documented in
 [`troubleshooting.md`](../troubleshooting/troubleshooting.md).
 
 **Verification:**

@@ -125,6 +125,7 @@ config vpn ipsec phase1-interface
         set mode-cfg enable
         set proposal des-sha256
         set dpd on-idle
+        set comments "IKEv2 road-warrior, EAP via RADIUS-HQ"
         set dhgrp 14
         set eap enable
         set eap-identity send-request
@@ -149,6 +150,7 @@ authentication, not as a replacement for one or the other.
 ```
 config firewall address
     edit "Internal-Net"
+        set comment "Split-tunnel network"
         set subnet 10.10.0.0 255.255.0.0
     next
 end
@@ -178,7 +180,7 @@ comes up.
 
 ```
 config user radius
-    edit "Radius-HQ"
+    edit "RADIUS-HQ"
         set server "10.10.30.5"
         set secret eve
     next
@@ -190,28 +192,41 @@ end
 ```
 config user group
     edit "GRP_SSLVPN_Users"
-        set member "Radius-HQ"
+        set member "RADIUS-HQ"
     next
 end
 ```
 
-### Firewall policies (both directions)
+### Firewall policies
+
+Three policies exist in total (the unlicensed VM allows no more, see
+[Known limitations](#known-limitations-of-this-fortigate-vm)):
+`LAN-to-WAN` (outbound internet access with NAT) and the two VPN policies
+below.
 
 ```
+config firewall address
+    edit "Staging-Server-HQ"
+        set comment "Backup push target"
+        set subnet 10.10.20.10 255.255.255.255
+    next
+end
+
 config firewall policy
     edit 0
         set name "VPN-to-LAN"
         set srcintf "RoadWarrior"
         set dstintf "port2"
         set srcaddr "all"
-        set dstaddr "all"
+        set dstaddr "Staging-Server-HQ"
         set action accept
         set schedule "always"
-        set service "ALL"
+        set service "SSH"
         set nat disable
+        set comments "VPN-clients, restricted to Staging-Server-HQ (SSH)"
     next
     edit 0
-        set name "LAN-TO-VPN"
+        set name "LAN-to-VPN"
         set srcintf "port2"
         set dstintf "RoadWarrior"
         set srcaddr "all"
@@ -219,13 +234,20 @@ config firewall policy
         set action accept
         set schedule "always"
         set service "ALL"
+        set comments "Jump-Host to connected VPN-clients"
     next
 end
 ```
 
-Both directions are needed — the first handles VPN clients reaching into
-the internal network, the second handles internal hosts (e.g. the jump
-host) reaching back out to a connected client.
+**VPN → LAN is deliberately narrow:** a connected VPN client may only open
+SSH connections to the staging server, which is all the backup push needs
+(`scp` and `rsync` both run over SSH). Everything else toward the internal
+network, the jump host and the management VLAN included, is dropped by the
+implicit deny. The address object has no associated interface, so it is
+selectable for any policy.
+
+**LAN → VPN stays open** so that internal hosts (e.g. the jump host) can
+reach back into a connected client for administrative SSH.
 
 ### Return route on Router-HQ
 
@@ -325,12 +347,17 @@ client's currently assigned pool address)
 
 ## Verification
 
-With the tunnel connected on the Windows client:
+With the tunnel connected on the Windows client (PowerShell):
 
 ```
-ping 8.8.8.8       # direct, not through the tunnel (split-tunnel working)
-ping 10.10.99.9    # through the tunnel (internal reachability working)
+ping 8.8.8.8                             # direct, not through the tunnel (split tunnel working)
+Test-NetConnection 10.10.20.10 -Port 22  # through the tunnel, allowed (staging server)
+Test-NetConnection 10.10.99.9 -Port 22   # must FAIL: the VPN policy only allows the staging server
 ```
+
+The last test failing is the intended result, not a fault: before the
+`VPN-to-LAN` policy was narrowed, clients could reach the jump host and
+the whole internal network through the tunnel.
 
 From the jump host or router, reaching back into the tunnel:
 ```
@@ -441,6 +468,19 @@ should show today's date after a successful run; on Staging-Server-HQ:
 ls -la /home/winpush/incoming/
 ```
 
+**Re-running manually:** the marker file stops a second push on the same
+day. Delete it first, then start the script:
+```
+del C:\Scripts\.last-push
+C:\Scripts\push-backup.bat
+```
+
+**Onward to the backup server:** the files in `/home/winpush/incoming/` are
+pulled by Backup-Server-HQ into the `vpn-client/` subfolder of the dated
+snapshot (see the Backup Chain in
+[`all-alpine-nodes.md`](all-alpine-nodes.md)). The full path of a VPN
+client's file is therefore Windows client → Staging-Server-HQ → Backup-Server-HQ.
+
 ---
 
 ## Known limitations of this FortiGate VM
@@ -448,7 +488,8 @@ ls -la /home/winpush/incoming/
 - **DES only** for IKE/IPsec encryption — no AES available on this
   unlicensed VM. In a licensed/production deployment, AES would be used
   instead.
-- **Maximum 3 firewall policies** in the root VDOM at once — relevant
-  when planning additional policies beyond what's listed here.
+- **Maximum 3 firewall policies** in the root VDOM at once — all three
+  are in use (`LAN-to-WAN`, `VPN-to-LAN`, `LAN-to-VPN`), so a further
+  policy would mean merging or replacing an existing one.
 - **Local EAP authentication does not work** for the reasons described
   above — this is why RADIUS-HQ exists at all in this topology.

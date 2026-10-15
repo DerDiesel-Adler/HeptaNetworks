@@ -8,11 +8,12 @@ A strictly segmented company network spanning Cisco IOS, FortiOS, Windows, and L
 
 ## Highlights
 
-- Single jump host lets the admin reach every device, VPN clients included, via SSH
+- Single jump host gives the admin the opportunity to reach every device, VPN clients included, via SSH
 - VLAN segmentation enforced via per-interface ACLs
 - FortiGate perimeter — IPsec/IKEv2 VPN, split-tunnel, RADIUS-authenticated
-- Automated backup jobs via rsync
-- Hardened management plane through SSH key authentication
+- VPN clients are limited by FortiGate policy to SSH towards the staging server
+- Automated backup jobs via rsync/cronjob
+- Hardened management plane: SSH key authentication on the Linux nodes, SSHv2 with local accounts on the Cisco devices
 
 
 ## Contents
@@ -54,13 +55,11 @@ jump host so that a compromised staging server has no way to reach it.
 
 Remote users connect through an IKEv2 road-warrior VPN. Authentication is
 handled through RADIUS, while split tunneling reduces the traffic sent through
-the company network.
+the company network. A FortiGate policy limits connected clients to SSH towards the staging server, which is all the backup push needs, everything else is dropped by the implicit deny
 
 ### Centralized logging
 
-All the network devices and servers forward logs to a dedicated syslog-
-server. This provides a single point to review activity and detect denied
-traffic across the network.
+All network devices (router, switch, access point and firewall) forward logs to a dedicated syslog server. This provides a single point to review activity and detect denied traffic across the network.
 
 
 ## Network Segmentation
@@ -119,6 +118,9 @@ A few of the more interesting problems solved along the way:
   authentication request to itself and never getting a reply is a
   limitation of this unlicensed VM. Solved by pointing the firewall at a
   RADIUS server inside the company LAN instead.
+
+- **Modern OpenSSH refused to talk to the Cisco devices:**
+The IOS 15.x images only offer diffie-hellman-group14-sha1 and ssh-rsa, both disabled by default in the jump host's OpenSSH, so SSH to the router, switch and AP failed with a key-exchange error. The two algorithms are re-enabled for the management segment only (additive + option in ~/.ssh/config) instead of weakening the client globally.
 
 A further lookup of the issues I was confronted with: [troubleshooting.md](troubleshooting/troubleshooting.md)
 
