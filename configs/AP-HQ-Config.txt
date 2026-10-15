@@ -35,7 +35,7 @@ spanning-tree extend system-id
 !
 !
 vlan 10
- name Mitarbeiter
+ name Employees
 !
 vlan 99
  name MGMT
@@ -67,6 +67,7 @@ interface GigabitEthernet0/0
  no negotiation auto
 !
 interface GigabitEthernet0/1
+ description Access-Port for VLAN10
  no shutdown
  switchport access vlan 10
  switchport mode access
@@ -75,6 +76,7 @@ interface GigabitEthernet0/1
  spanning-tree bpduguard enable
 !
 interface GigabitEthernet0/2
+ description Access-Port for VLAN10
  switchport access vlan 10
  switchport mode access
  no negotiation auto
@@ -83,11 +85,12 @@ interface GigabitEthernet0/2
 
 !
 interface GigabitEthernet0/3
+ description Not in use - Shutdown
  no negotiation auto
  shutdown
 !
 interface Vlan10
- description Mitarbeiter
+ description Employees
  no ip address
  shutdown
 !

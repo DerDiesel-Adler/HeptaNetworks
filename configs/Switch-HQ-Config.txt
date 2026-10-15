@@ -10,8 +10,8 @@ boot-start-marker
 boot-end-marker
 !
 !
-username admin password 7 110C0F00
 !
+username admin password 7 110C0F00
 no aaa new-model
 clock timezone CET 1 0
 clock summer-time CEST recurring
@@ -35,7 +35,7 @@ spanning-tree extend system-id
 !
 !
 vlan 10
- name Mitarbeiter
+ name Employees
 !
 vlan 20
  name Staging-Server
@@ -63,7 +63,7 @@ vlan 120
 !
 !
 interface GigabitEthernet0/0
- description Trunk to AP
+ description Trunk to AP-HQ
  switchport trunk allowed vlan 10,99
  switchport trunk encapsulation dot1q
  switchport trunk native vlan 120
@@ -72,7 +72,7 @@ interface GigabitEthernet0/0
  no negotiation auto
 !
 interface GigabitEthernet0/1
- description Link to Staging-Server
+ description Link to Staging-Server-HQ
  switchport access vlan 20
  switchport mode access
  switchport nonegotiate
@@ -82,6 +82,7 @@ interface GigabitEthernet0/1
  spanning-tree bpduguard enable
 !
 interface GigabitEthernet0/2
+ description Trunk to Router-HQ
  switchport trunk allowed vlan 10,20,30,99
  switchport trunk encapsulation dot1q
  switchport trunk native vlan 120
@@ -89,7 +90,7 @@ interface GigabitEthernet0/2
  no negotiation auto
 !
 interface GigabitEthernet0/3
- description Link to Jump-Host
+ description Link to Jump-Host-HQ
  switchport access vlan 99
  switchport mode access
  switchport nonegotiate
@@ -117,14 +118,16 @@ interface GigabitEthernet1/1
 !
 interface GigabitEthernet1/2
  shutdown
+ description Not in use - Shutdown
  negotiation auto
 !
 interface GigabitEthernet1/3
  shutdown
+ description Not in use - Shutdown
  negotiation auto
 !
 interface Vlan10
- description Mitarbeiter
+ description Employees
  no ip address
  shutdown
 !

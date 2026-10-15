@@ -69,7 +69,7 @@ crypto key generate rsa modulus 1024
 !
 interface GigabitEthernet0/0
  no shutdown
- description Transit zur Fortigate
+ description Transit-Link to Fortigate-HQ
  ip address 10.10.100.2 255.255.255.252
  ip virtual-reassembly in
  duplex auto
@@ -78,7 +78,7 @@ interface GigabitEthernet0/0
 !
 interface GigabitEthernet0/1
  no shutdown
- description server-lan
+ description Backup-Server-LAN
  ip address 10.10.0.1 255.255.255.0
  ip access-group Backup-Server-Restrictions in
  ip virtual-reassembly in
@@ -88,6 +88,7 @@ interface GigabitEthernet0/1
 !
 interface GigabitEthernet0/2
  no shutdown
+ description Trunk-Link to Switch-HQ
  no ip address
  duplex auto
  speed auto
@@ -95,32 +96,33 @@ interface GigabitEthernet0/2
 !
 interface GigabitEthernet0/2.10
  no shutdown
- description Mitarbeiter-Subinterface VLAN10
+ description Employee-Subinterface VLAN10
  encapsulation dot1Q 10
  ip address 10.10.10.1 255.255.255.0
  ip access-group VLAN10-Restrictions in
 !
 interface GigabitEthernet0/2.20
  no shutdown
- description Staging-Server-Gateway
+ description Staging-Server-HQ Subinterface VLAN20
  encapsulation dot1Q 20
  ip address 10.10.20.1 255.255.255.0
  ip access-group Staging-Server-Restrictions in
 !
 interface GigabitEthernet0/2.30
  no shutdown
- description Infrastructure
+ description Infrastructure Subinterface VLAN30
  encapsulation dot1Q 30
  ip address 10.10.30.1 255.255.255.0
  ip access-group Infrastructure-Restrictions in
 !
 interface GigabitEthernet0/2.99
  no shutdown
- description mgmt subinterface
+ description MGMT Subinterface VLAN99
  encapsulation dot1Q 99
  ip address 10.10.99.1 255.255.255.0
 !
 interface GigabitEthernet0/3
+description Not in use - Shutdown
  no ip address
  ip virtual-reassembly in
  shutdown
@@ -145,7 +147,7 @@ ip access-list extended Backup-Server-Restrictions
  deny   ip host 10.10.0.5 10.10.10.0 0.0.0.255
  deny   ip host 10.10.0.5 10.10.99.0 0.0.0.255
  permit ip host 10.10.0.5 any
-Extended IP access list Infrastructure-Restrictions
+ ip access list Infrastructure-Restrictions
     10 permit udp host 10.10.30.5 eq 1812 host 10.10.100.1
     20 permit tcp 10.10.30.0 0.0.0.255 eq 22 host 10.10.99.9 established
     30 permit tcp 10.10.30.0 0.0.0.255 any eq www
