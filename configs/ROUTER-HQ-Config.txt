@@ -147,7 +147,7 @@ ip access-list extended Backup-Server-Restrictions
  deny   ip host 10.10.0.5 10.10.10.0 0.0.0.255
  deny   ip host 10.10.0.5 10.10.99.0 0.0.0.255
  permit ip host 10.10.0.5 any
- ip access list Infrastructure-Restrictions
+ ip access list extended Infrastructure-Restrictions
     10 permit udp host 10.10.30.5 eq 1812 host 10.10.100.1
     20 permit tcp 10.10.30.0 0.0.0.255 eq 22 host 10.10.99.9 established
     30 permit tcp 10.10.30.0 0.0.0.255 any eq www
